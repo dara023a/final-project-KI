@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Safety-Bot Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --bg2: #181c25;
+      --bg3: #1e2333;
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --text: #e8eaf0;
+      --text2: #8b90a0;
+      --text3: #555b6e;
+      --accent: #4f7cff;
+      --accent-dim: rgba(79,124,255,0.12);
+      --green: #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --amber: #f59e0b;
+      --amber-dim: rgba(245,158,11,0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
+      --radius: 10px;
+      --radius-lg: 14px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,17,23,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 0.5px solid var(--border2);
+      padding: 0 24px;
+      height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+    .nav-brand i { font-size: 20px; color: var(--accent); }
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 500;
+      border: 0.5px solid var(--border2);
+      background: var(--bg2);
+      transition: all 0.3s;
+    }
+    .status-pill .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text3);
+    }
+    .status-pill.online .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-pill.offline .dot { background: var(--red); }
+
+    /* ── Layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px; }
+
+    /* ── Stats Row ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+    }
+    .stat-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; margin-bottom: 14px;
+    }
+    .stat-icon.blue { background: var(--accent-dim); color: var(--accent); }
+    .stat-icon.green { background: var(--green-dim); color: var(--green); }
+    .stat-icon.amber { background: var(--amber-dim); color: var(--amber); }
+    .stat-label { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .stat-value { font-size: 22px; font-weight: 600; color: var(--text); }
+    .stat-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    /* ── Progress bar ── */
+    .progress-wrap { margin-top: 10px; }
+    .progress-bar { height: 3px; background: var(--bg3); border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width 0.5s; }
+
+    /* ── Grid ── */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 700px) { .content-grid { grid-template-columns: 1fr; } }
+
+    /* ── Section card ── */
+    .card {
+      background: var(--bg2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 0.5px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title i { font-size: 16px; color: var(--accent); }
+    .card-body { padding: 20px; }
+
+    /* ── Form ── */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group:last-child { margin-bottom: 0; }
+    label {
+      display: block;
+      font-size: 11px; font-weight: 500;
+      color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      background: var(--bg3);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 9px 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 500;
+      color: var(--text);
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79,124,255,0.12);
+    }
+    textarea { resize: vertical; min-height: 90px; font-family: 'DM Mono', monospace; font-size: 12px; }
+    select option { background: var(--bg2); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 500;
+      border: 0.5px solid var(--border2);
+      background: transparent; color: var(--text2);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #3d6be8; color: #fff; border-color: #3d6be8; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── Prayer list ── */
+    .prayer-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 0.5px solid var(--border);
+    }
+    .prayer-item:last-child { border-bottom: none; }
+    .prayer-name { font-size: 13px; font-weight: 500; color: var(--text2); }
+    .prayer-time { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--accent); font-weight: 500; }
+    .prayer-next { background: var(--accent-dim); color: var(--accent); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+
+    /* ── Log terminal ── */
+    .log-terminal {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      height: 180px;
+      overflow-y: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      line-height: 1.7;
+    }
+    .log-line { color: #3fb950; }
+    .log-line.warn { color: var(--amber); }
+    .log-line.error { color: var(--red); }
+    .log-line.info { color: var(--text3); }
+
+    /* ── Full width card ── */
+    .card-full { grid-column: 1 / -1; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px;
+      background: var(--bg3);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 12px 18px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; font-weight: 500;
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast i { font-size: 16px; color: var(--green); }
+
+    /* ── Divider ── */
+    .divider { height: 0.5px; background: var(--border); margin: 16px 0; }
+
+    /* ── Toggle ── */
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+    .toggle-label { font-size: 13px; color: var(--text2); }
+    .toggle {
+      width: 40px; height: 22px; border-radius: 999px;
+      background: var(--bg3); border: 0.5px solid var(--border2);
+      position: relative; cursor: pointer; transition: background 0.2s;
+    }
+    .toggle.on { background: var(--accent); border-color: var(--accent); }
+    .toggle-thumb {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--text3); position: absolute;
+      top: 2px; left: 3px; transition: all 0.2s;
+    }
+    .toggle.on .toggle-thumb { background: #fff; left: 21px; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 11px; font-weight: 600; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 14px; padding-bottom: 8px;
+      border-bottom: 0.5px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <i class="ti ti-shield-check"></i>
+    Safety-Bot Dashboard
+  </div>
+  <div id="conn-status" class="status-pill">
+    <span class="dot"></span>
+    <span id="conn-text">Connecting...</span>
+  </div>
+</nav>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="ti ti-robot"></i></div>
+      <div class="stat-label">Status Bot</div>
+      <div id="stat-bot" class="stat-value">—</div>
+      <div id="stat-bot-sub" class="stat-sub">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green"><i class="ti ti-brain"></i></div>
+      <div class="stat-label">Penggunaan AI</div>
+      <div id="stat-ai" class="stat-value">0 / 40</div>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div id="ai-bar" class="progress-fill" style="width:0%"></div></div>
+      </div>
+      <div id="stat-ai-sub" class="stat-sub">0% terpakai hari ini</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon amber"><i class="ti ti-users"></i></div>
+      <div class="stat-label">Grup Dipantau</div>
+      <div id="stat-group" class="stat-value">0</div>
+      <div class="stat-sub">grup aktif</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="ti ti-clock"></i></div>
+      <div class="stat-label">Uptime</div>
+      <div id="stat-uptime" class="stat-value">—</div>
+      <div class="stat-sub">sejak terakhir restart</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="content-grid">
+
+    <!-- Config Panel -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><i class="ti ti-settings"></i> Konfigurasi Bot</div>
+        <button class="btn btn-primary btn-sm" onclick="saveConfig()">
+          <i class="ti ti-device-floppy"></i> Simpan
+        </button>
+      </div>
+      <div class="card-body">
+
+        <div class="section-label">Identitas</div>
+        <div class="form-group">
+          <label>Nama Bot</label>
+          <input type="text" id="cfg-name" placeholder="Safety-Bot">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nomor Owner</label>
+            <input type="text" id="cfg-owner" placeholder="6282254513920">
+          </div>
+          <div class="form-group">
+            <label>Nomor Bot</label>
+            <input type="text" id="cfg-bot-num" placeholder="62895416132949">
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-label">Jam Operasional</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Jam Buka (0–23)</label>
+            <input type="number" id="cfg-open" min="0" max="23">
+          </div>
+          <div class="form-group">
+            <label>Jam Tutup (0–23)</label>
+            <input type="number" id="cfg-close" min="0" max="23">
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-label">Buffer Shalat</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Sebelum Adzan (mnt)</label>
+            <input type="number" id="cfg-before" min="0" max="60">
+          </div>
+          <div class="form-group">
+            <label>Setelah Adzan (mnt)</label>
+            <input type="number" id="cfg-after" min="0" max="60">
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-label">Lokasi & AI</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Kota</label>
+            <input type="text" id="cfg-city" placeholder="Jakarta">
+          </div>
+          <div class="form-group">
+            <label>Negara</label>
+            <input type="text" id="cfg-country" placeholder="Indonesia">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>AI Confidence (0.5–1.0)</label>
+            <input type="number" id="cfg-confidence" step="0.05" min="0.5" max="1.0">
+          </div>
+          <div class="form-group">
+            <label>Max Peringatan</label>
+            <input type="number" id="cfg-warnings" min="1" max="10">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+
+      <!-- Prayer Times -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="ti ti-moon"></i> Jadwal Shalat</div>
+          <span id="prayer-date" style="font-size:11px; color:var(--text3);">—</span>
+        </div>
+        <div class="card-body" style="padding: 8px 20px;">
+          <div id="prayer-list">
+            <div class="prayer-item"><span class="prayer-name">Memuat...</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Terminal -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="ti ti-terminal-2"></i> Log Sistem</div>
+          <button class="btn btn-sm" onclick="clearLogs()"><i class="ti ti-trash"></i> Bersihkan</button>
+        </div>
+        <div class="card-body" style="padding: 12px 16px;">
+          <div id="log-box" class="log-terminal">
+            <div class="log-line info">> Menghubungkan ke server...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Pesan Sambutan & Aturan — full width -->
+    <div class="card card-full">
+      <div class="card-header">
+        <div class="card-title"><i class="ti ti-message-2"></i> Pesan & Aturan Grup</div>
+        <button class="btn btn-primary btn-sm" onclick="saveMessages()">
+          <i class="ti ti-device-floppy"></i> Simpan Pesan
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Deskripsi Grup (Pesan Sambutan)</label>
+            <textarea id="cfg-desc" rows="6"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Peraturan Grup</label>
+            <textarea id="cfg-rules" rows="6"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Toast -->
+<div id="toast"><i class="ti ti-circle-check"></i><span id="toast-msg">Disimpan!</span></div>
+
+<script>
+  let configCache = {};
+  let logLines = [];
+
+  function addLog(msg, type = '') {
+    const d = new Date().toLocaleTimeString('id-ID');
+    logLines.push({ msg: `[${d}] ${msg}`, type });
+    if (logLines.length > 100) logLines.shift();
+    renderLogs();
+  }
+
+  function renderLogs() {
+    const box = document.getElementById('log-box');
+    box.innerHTML = logLines.map(l =>
+      `<div class="log-line ${l.type}">${escHtml(l.msg)}</div>`
+    ).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function clearLogs() { logLines = []; renderLogs(); }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    const icon = t.querySelector('i');
+    document.getElementById('toast-msg').textContent = msg;
+    icon.className = isError ? 'ti ti-alert-circle' : 'ti ti-circle-check';
+    icon.style.color = isError ? 'var(--red)' : 'var(--green)';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function setConnection(online) {
+    const pill = document.getElementById('conn-status');
+    const txt  = document.getElementById('conn-text');
+    pill.className = 'status-pill ' + (online ? 'online' : 'offline');
+    txt.textContent = online ? 'Connected' : 'Disconnected';
+  }
+
+  function formatUptime(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    if (h > 0) return `${h}j ${m}m`;
+    return `${m} menit`;
+  }
+
+  async function fetchStats() {
+    try {
+      const res  = await fetch('/api/stats');
+      const data = await res.json();
+
+      setConnection(true);
+
+      // Bot status
+      const active = data.botStatus?.isActive;
+      document.getElementById('stat-bot').textContent = active ? 'Aktif' : 'Tidur';
+      document.getElementById('stat-bot-sub').textContent = active ? 'Memantau grup' : 'Bot dinonaktifkan';
+      document.getElementById('stat-bot').style.color = active ? 'var(--green)' : 'var(--amber)';
+
+      // AI stats
+      const ai = data.aiStats || { used: 0, cap: 40 };
+      const pct = Math.round((ai.used / ai.cap) * 100);
+      document.getElementById('stat-ai').textContent = `${ai.used} / ${ai.cap}`;
+      document.getElementById('ai-bar').style.width = `${pct}%`;
+      document.getElementById('stat-ai-sub').textContent = `${pct}% terpakai hari ini`;
+
+      // Groups
+      document.getElementById('stat-group').textContent = data.groups?.length ?? 0;
+
+      // Uptime
+      if (data.uptime) {
+        document.getElementById('stat-uptime').textContent = formatUptime(Math.round(data.uptime));
+      }
+
+      // Config fields (only on first load or after save)
+      if (data.config && Object.keys(configCache).length === 0) {
+        configCache = data.config;
+        populateForm(data.config);
+      }
+
+      // Prayer times
+      if (data.prayerTimes) renderPrayer(data.prayerTimes);
+
+      addLog(`Stats diperbarui — bot ${active ? 'aktif' : 'tidur'}, ${data.groups?.length ?? 0} grup`);
+
+    } catch (err) {
+      setConnection(false);
+      addLog('Gagal terhubung ke server: ' + err.message, 'error');
+    }
+  }
+
+  function populateForm(cfg) {
+    document.getElementById('cfg-name').value       = cfg.BOT_NAME        ?? '';
+    document.getElementById('cfg-owner').value      = cfg.OWNER_NUMBER    ?? '';
+    document.getElementById('cfg-bot-num').value    = cfg.BOT_NUMBER      ?? '';
+    document.getElementById('cfg-open').value       = cfg.OPEN_HOUR       ?? 3;
+    document.getElementById('cfg-close').value      = cfg.CLOSE_HOUR      ?? 22;
+    document.getElementById('cfg-before').value     = cfg.BEFORE_PRAYER   ?? 5;
+    document.getElementById('cfg-after').value      = cfg.AFTER_PRAYER    ?? 10;
+    document.getElementById('cfg-city').value       = cfg.CITY            ?? '';
+    document.getElementById('cfg-country').value    = cfg.COUNTRY         ?? '';
+    document.getElementById('cfg-confidence').value = cfg.GROK_CONFIDENCE ?? 0.75;
+    document.getElementById('cfg-warnings').value   = cfg.MAX_WARNINGS    ?? 3;
+    document.getElementById('cfg-desc').value       = cfg.GROUP_DESCRIPTION ?? '';
+    document.getElementById('cfg-rules').value      = cfg.GROUP_RULES      ?? '';
+  }
+
+  function buildPayload() {
+    return {
+      ...configCache,
+      BOT_NAME:          document.getElementById('cfg-name').value,
+      OWNER_NUMBER:      document.getElementById('cfg-owner').value,
+      BOT_NUMBER:        document.getElementById('cfg-bot-num').value,
+      OPEN_HOUR:         parseInt(document.getElementById('cfg-open').value),
+      CLOSE_HOUR:        parseInt(document.getElementById('cfg-close').value),
+      BEFORE_PRAYER:     parseInt(document.getElementById('cfg-before').value),
+      AFTER_PRAYER:      parseInt(document.getElementById('cfg-after').value),
+      CITY:              document.getElementById('cfg-city').value,
+      COUNTRY:           document.getElementById('cfg-country').value,
+      GROK_CONFIDENCE:   parseFloat(document.getElementById('cfg-confidence').value),
+      MAX_WARNINGS:      parseInt(document.getElementById('cfg-warnings').value),
+      GROUP_DESCRIPTION: document.getElementById('cfg-desc').value,
+      GROUP_RULES:       document.getElementById('cfg-rules').value,
+    };
+  }
+
+  async function saveConfig() {
+    try {
+      const payload = buildPayload();
+      const res  = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        configCache = {};
+        showToast('Konfigurasi berhasil disimpan!');
+        addLog('Config disimpan ke server', 'info');
+      } else {
+        showToast('Gagal menyimpan: ' + (data.message || 'Unknown error'), true);
+      }
+    } catch (err) {
+      showToast('Error: ' + err.message, true);
+      addLog('Save error: ' + err.message, 'error');
+    }
+  }
+
+  async function saveMessages() {
+    try {
+      const payload = buildPayload();
+      const res  = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        configCache = {};
+        showToast('Pesan & aturan grup disimpan!');
+        addLog('Pesan grup diperbarui', 'info');
+      } else {
+        showToast('Gagal: ' + (data.message || ''), true);
+      }
+    } catch (err) {
+      showToast('Error: ' + err.message, true);
+    }
+  }
+
+  function renderPrayer(times) {
+    const labels = { Fajr:'Subuh', Dhuhr:'Dzuhur', Asr:'Ashar', Maghrib:'Maghrib', Isha:'Isya' };
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    // Find next prayer
+    let nextKey = null, nextMin = 9999;
+    for (const k of Object.keys(labels)) {
+      if (!times[k]) continue;
+      const [h, m] = times[k].split(':').map(Number);
+      const pm = h * 60 + m;
+      if (pm > nowMin && pm < nextMin) { nextMin = pm; nextKey = k; }
+    }
+
+    const dateStr = now.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long' });
+    document.getElementById('prayer-date').textContent = dateStr;
+
+    let html = '';
+    for (const [k, label] of Object.entries(labels)) {
+      const time = times[k] ? times[k].replace(' WIB','') + ' WIB' : '—';
+      const isNext = k === nextKey;
+      html += `
+        <div class="prayer-item">
+          <span class="prayer-name">${label}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${isNext ? '<span class="prayer-next">Berikutnya</span>' : ''}
+            <span class="prayer-time">${time}</span>
+          </div>
+        </div>`;
+    }
+    document.getElementById('prayer-list').innerHTML = html;
+  }
+
+  // Init
+  fetchStats();
+  setInterval(fetchStats, 5000);
+</script>
+</body>
+</html>
