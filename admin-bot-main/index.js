@@ -125,6 +125,7 @@ const client = new Client({
     authStrategy: new LocalAuth({ clientId: 'safety-bot' }),
     puppeteer: puppeteerOptions
 });
+const waClient = client;
 
 // ─── QR Code ────────────────────────────────────────────────
 client.on('qr', async (qr) => {
@@ -321,21 +322,61 @@ client.on('message_create', async (message) => {
 });
 
 async function handleAllMessages(message) {
+  try {
+    if (!message || message.isStatus) return;
+    const from = message.from || '';
+    console.log(`[Event] from=${from} body=${(message.body || '').slice(0, 40)} fromMe=${message.fromMe}`);
+    if (from === 'status@broadcast' || from.endsWith('@broadcast') || from.endsWith('@newsletter')) return;
+    await handleAllMessagesRaw(message);
+  } catch (err) {
+    const reason = (err && err.message) || String(err);
+    if (reason === 'r' || /Evaluation failed|Execution context was destroyed/i.test(reason)) return;
+    console.error('[Msg] Gagal memproses pesan:', reason);
+  }
+}
+
+function normalizePhone(value) {
+  if (!value) return '';
+  let n = String(value).replace(/\D/g, '');
+  if (n.startsWith('0')) n = '62' + n.slice(1);
+  if (n.startsWith('8')) n = '62' + n;
+  return n;
+}
+
+async function handleAllMessagesRaw(message) {
   const contact  = await message.getContact();
   const senderId = message.author || message.from;
   const senderNo = senderId.split('@')[0];
-  const phoneNo  = contact.number;
+  let phoneNo    = contact.number;
 
-  const ownerNumbers = (config.OWNER_NUMBER || '').split(',').map(n => n.trim());
-  const isOwner      = ownerNumbers.includes(senderNo) || ownerNumbers.includes(phoneNo);
+  if (senderId.includes('@lid')) {
+    try {
+      const mapped = await waClient.getContactLidAndPhone(senderId);
+      const pn = mapped && mapped[0] && mapped[0].pn;
+      if (pn) phoneNo = pn.split('@')[0];
+    } catch (e) {
+      console.log('[Msg] Gagal petakan LID ke nomor:', e.message);
+    }
+  }
 
-  const body = (message.body || '').trim().toLowerCase();
-  const chat = await message.getChat();
+  const rawNumbers = [senderNo, phoneNo, contact.id?.user].filter(Boolean).map(n => String(n).split('@')[0]);
+  const knownNumbers = rawNumbers.map(normalizePhone).filter(Boolean);
+  const ownerNumbers = (config.OWNER_NUMBER || '').split(',').map(n => normalizePhone(n.trim()));
+  const isOwner      = rawNumbers.some((n, i) => ownerNumbers.includes(knownNumbers[i]));
 
-  console.log(`[Msg] Dari: ${senderNo} (${phoneNo}) | Chat: ${chat.name || 'Private'} | Body: ${body}`);
+  const body = (message.body || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  let chat = null;
+  try {
+    chat = await message.getChat();
+  } catch (e) {
+    console.log('[Msg] getChat gagal, lanjut memproses perintah:', e.message);
+  }
+
+  console.log(`[Msg] Dari: ${senderNo} (${phoneNo}) | Chat: ${chat ? (chat.name || 'Private') : '-'} | Body: ${body} | Owner: ${isOwner}`);
 
   if (body === '!help') {
-    if (chat.isGroup || isOwner) {
+    if (isOwner || (chat && chat.isGroup)) {
       let helpMsg = `📋 *Menu ${config.BOT_NAME}*\n\n` +
                     `*!status*    — Cek status aktif bot\n` +
                     `*!apistats*  — Penggunaan AI hari ini\n`;
@@ -344,6 +385,7 @@ async function handleAllMessages(message) {
                    `*bot-bangun*  — Aktifkan bot\n` +
                    `*bot-tidur*   — Matikan bot\n` +
                    `*!groups*      — Daftar grup\n` +
+                   `*!warn <id> <no>*  — Cek warn member\n` +
                    `*!reset <id> <no>* — Reset warn\n` +
                    `*!lock/unlock <id>* — Kontrol grup\n`;
       }
@@ -382,7 +424,7 @@ async function handleAllMessages(message) {
 
   if (body === 'bot-bangun' || body === 'bot-tidur') {
     let canToggle = isOwner;
-    if (!canToggle && chat.isGroup) {
+    if (!canToggle && chat && chat.isGroup) {
       if (!chat.participants) {
         try { await chat.fetchParticipants(); } catch {}
       }
@@ -443,7 +485,25 @@ async function handleAllMessages(message) {
     }
   }
 
-  if (chat.isGroup) {
+  if (body.startsWith('!warn ') && isOwner) {
+    const partsWarn = body.split(' ');
+    if (partsWarn.length >= 3) {
+      const groupId = partsWarn[1];
+      const userId  = partsWarn[2].includes('@') ? partsWarn[2] : partsWarn[2] + '@c.us';
+      const count   = getMemberWarnings(groupId, userId);
+      await message.reply(`⚠️ Peringatan ${partsWarn[2]} di ${groupId}: *${count}*`);
+    } else {
+      await message.reply('❌ Format: !warn <groupId> <nomor>');
+    }
+    return;
+  }
+
+  if (body.startsWith('!') && (isOwner || (chat && chat.isGroup))) {
+    await message.reply('❌ Perintah tidak dikenal. Ketik *!help* untuk daftar perintah.');
+    return;
+  }
+
+  if (chat && chat.isGroup) {
     await handleMessage(client, message, getGroups);
   }
 }
