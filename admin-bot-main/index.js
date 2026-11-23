@@ -92,8 +92,45 @@ app.listen(PORT, () => {
 });
 
 // ─── Daftar grup yang dikelola bot ─────────────────────────
-let managedGroups = [];
+const GROUPS_FILE = path.join(__dirname, 'data', 'groups.json');
+
+function loadManagedGroups() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveManagedGroups() {
+  try {
+    fs.mkdirSync(path.dirname(GROUPS_FILE), { recursive: true });
+    fs.writeFileSync(GROUPS_FILE, JSON.stringify(managedGroups, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Group] Gagal simpan daftar grup:', e.message);
+  }
+}
+
+let managedGroups = loadManagedGroups();
 const getGroups = () => managedGroups;
+
+async function refreshManagedGroups() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const chats = await client.getChats();
+      const groupChats = chats.filter(c => c.isGroup).map(c => c.id._serialized);
+      if (groupChats.length) managedGroups = groupChats;
+      saveManagedGroups();
+      console.log(`[Group] Daftar grup diperbarui: ${managedGroups.length}`);
+      return managedGroups;
+    } catch (e) {
+      console.error(`[Group] Gagal ambil daftar grup (percobaan ${attempt}/3):`, e.message);
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  return managedGroups;
+}
 
 // ─── Inisialisasi Client WhatsApp ───────────────────────────
 const isTermux = process.platform === 'android' || process.env.PREFIX === '/data/data/com.termux/files/usr';
@@ -166,22 +203,10 @@ client.on('ready', async () => {
   console.log(`  📅  ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`);
   console.log('═'.repeat(55));
 
-  try {
-    const chats = await client.getChats();
-    const groupChats = chats.filter(c => c.isGroup).map(c => c.id._serialized);
-
-    if (managedGroups.length === 0) {
-      managedGroups = groupChats;
-    } else {
-      managedGroups = managedGroups.filter(id => groupChats.includes(id));
-    }
-
-    console.log(`  📊  Memantau ${managedGroups.length} grup`);
-    managedGroups.forEach(id => console.log(`       • ${id}`));
-    console.log('═'.repeat(55) + '\n');
-  } catch (e) {
-    console.error('Gagal mengambil daftar grup:', e.message);
-  }
+  await refreshManagedGroups();
+  console.log(`  📊  Memantau ${managedGroups.length} grup`);
+  managedGroups.forEach(id => console.log(`       • ${id}`));
+  console.log('═'.repeat(55) + '\n');
 
   await startPrayerScheduler(client, getGroups);
   startGroupOperationalScheduler();
@@ -289,13 +314,12 @@ async function checkCurrentOperationalHours() {
 
 // ─── Event: Anggota Baru Masuk ───────────────────────────────
 client.on('group_join', async (notification) => {
-  const ids = notification.recipientIds || [];
-  if (ids.includes(config.BOT_NUMBER + '@c.us')) {
-    if (!managedGroups.includes(notification.chatId)) {
-      managedGroups.push(notification.chatId);
-      console.log(`[Group] Bot ditambahkan ke grup baru: ${notification.chatId}`);
-      await startPrayerScheduler(client, getGroups);
-    }
+  const chatId = notification.chatId;
+  if (chatId && !managedGroups.includes(chatId)) {
+    managedGroups.push(chatId);
+    saveManagedGroups();
+    console.log(`[Group] Bot ditambahkan ke grup baru: ${chatId}`);
+    await startPrayerScheduler(client, getGroups);
   }
   await handleNewMember(client, notification);
 });
@@ -305,6 +329,7 @@ client.on('group_leave', async (notification) => {
   const ids = notification.recipientIds || [];
   if (ids.includes(config.BOT_NUMBER + '@c.us')) {
     managedGroups = managedGroups.filter(id => id !== notification.chatId);
+    saveManagedGroups();
     console.log(`[Group] Bot dikeluarkan dari grup: ${notification.chatId}`);
   }
 });
@@ -326,6 +351,11 @@ async function handleAllMessages(message) {
     if (!message || message.isStatus) return;
     const from = message.from || '';
     console.log(`[Event] from=${from} body=${(message.body || '').slice(0, 40)} fromMe=${message.fromMe}`);
+    if (from.endsWith('@g.us') && !managedGroups.includes(from)) {
+      managedGroups.push(from);
+      saveManagedGroups();
+      console.log(`[Group] Grup terdeteksi dari pesan: ${from}`);
+    }
     if (from === 'status@broadcast' || from.endsWith('@broadcast') || from.endsWith('@newsletter')) return;
     await handleAllMessagesRaw(message);
   } catch (err) {
@@ -347,6 +377,7 @@ async function handleAllMessagesRaw(message) {
   const contact  = await message.getContact();
   const senderId = message.author || message.from;
   const senderNo = senderId.split('@')[0];
+  const groupFrom = message.from || '';
   let phoneNo    = contact.number;
 
   if (senderId.includes('@lid')) {
@@ -449,6 +480,7 @@ async function handleAllMessagesRaw(message) {
 
   if (isOwner) {
     if (body === '!groups') {
+      if (!managedGroups.length) await refreshManagedGroups();
       const list = managedGroups.length
         ? managedGroups.map((g, i) => `${i + 1}. ${g}`).join('\n')
         : 'Tidak ada grup.';
@@ -504,7 +536,14 @@ async function handleAllMessagesRaw(message) {
   }
 
   if (chat && chat.isGroup) {
-    await handleMessage(client, message, getGroups);
+    await handleMessage(client, message, getGroups, chat);
+  } else if (!chat && groupFrom.endsWith('@g.us')) {
+    try {
+      const fallbackChat = await client.getChatById(groupFrom);
+      await handleMessage(client, message, getGroups, fallbackChat);
+    } catch (e) {
+      console.log('[Moderation] Gagal ambil chat grup:', e.message);
+    }
   }
 }
 

@@ -4,6 +4,7 @@ node_modules/
 *.log
 data/status.json
 data/warnings.json
+data/groups.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

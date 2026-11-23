@@ -26,18 +26,27 @@ const CATEGORY_INFO = {
 /**
  * Handler utama untuk setiap pesan masuk di grup
  */
-async function handleMessage(client, message, getGroups) {
+async function handleMessage(client, message, getGroups, providedChat = null) {
   try {
     // ── Check Bot Status ─────────────────────────────────────
     const { isActive } = loadStatus();
-    if (!isActive) return;
+    if (!isActive) {
+      console.log('[Moderation] Bot sedang tidur, pesan diabaikan.');
+      return;
+    }
 
     // Hanya proses pesan grup
-    const chat = await message.getChat();
-    if (!chat.isGroup) return;
+    let chat = providedChat;
+    if (!chat) {
+      try { chat = await message.getChat(); } catch (e) {}
+    }
+    if (!chat || !chat.isGroup) return;
 
     // Hanya proses grup yang dikelola
-    if (getGroups && !getGroups().includes(chat.id._serialized)) return;
+    if (getGroups && !getGroups().includes(chat.id._serialized)) {
+      console.log('[Moderation] Grup belum terdaftar:', chat.id._serialized);
+      return;
+    }
 
     // Identifikasi pengirim
     const contact  = await message.getContact();
