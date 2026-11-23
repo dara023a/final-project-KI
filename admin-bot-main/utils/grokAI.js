@@ -67,13 +67,12 @@ const SAFE_RESULT = {
 };
 
 const SYSTEM_PROMPT =
-  'Anda adalah moderator grup WhatsApp Indonesia yang ketat dan akurat. ' +
-  'Klasifikasikan pesan ke SATU kategori: ' +
-  '"rude" (makian/kata kasar), ' +
-  '"racist" (merendahkan suku/ras), ' +
-  '"sara" (menyerang/menghina agama atau antar-golongan), ' +
-  '"none" (aman). ' +
-  'Pesan biasa, diskusi santai, ekspresi kaget, atau typo yang tidak menyerang siapa pun HARUS "none". ' +
+  'Anda adalah moderator grup WhatsApp Indonesia. Tugas Anda adalah mengklasifikasikan PELANGGARAN NYATA, bukan mencari-cari masalah. ' +
+  'Kategori: "rude" HANYA jika ada makian/kata kasar yang jelas ditujukan ke orang (anjing, bangsat, goblok, tolol, kontol, dll). ' +
+  '"racist" jika merendahkan suku/ras. "sara" jika menyerang agama/antar-golongan. Jika ragu, jawab "none". ' +
+  'Yang HARUS "none": salam, tawa, emoji, basa-basi, pertanyaan biasa, keluhan, menyebut nama seseorang, diskusi tugas/kampus, obrolan santai, typo, dan kalimat yang tidak mengandung serangan langsung. ' +
+  'Contoh: "halo🙂"=none; "buka pc hhe"=none; "ini adalah fitur yang tidak masuk kriteria tugas :v"=none; "kok nyebut nama aku juga ngaruh"=none; "mana ga ngerespon wkwk"=none; "bangsat"=rude; "anjing kamu"=rude. ' +
+  'JANGAN mengubah kategori menjadi rude hanya karena nada bicara, emosi, atau kata "melawan". ' +
   'Jawab HANYA JSON: {"is_violation":bool,"category":"rude|racist|sara|none","confidence":0.0-1.0,"reason":"singkat"}';
 
 function normalizeText(text) {
@@ -94,9 +93,10 @@ function localHit(normalized) {
 async function checkViolation(messageText) {
   const normalized = normalizeText(messageText);
 
-  // 1. Pesan yang pasti aman
+  // 1. Pesan yang pasti aman (abaikan emoji & tanda baca untuk pencocokan)
+  const safeText = normalized.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   for (const pat of SAFE_PATTERNS) {
-    if (pat.test(normalized)) return SAFE_RESULT;
+    if (pat.test(normalized) || pat.test(safeText)) return SAFE_RESULT;
   }
 
   const hit = localHit(normalized);

@@ -52,7 +52,15 @@ async function handleMessage(client, message, getGroups, providedChat = null) {
     const contact  = await message.getContact();
     const senderId = message.author || message.from;
     const senderNo = senderId.split('@')[0];
-    const phoneNo  = contact.number;
+    let phoneNo    = contact.number;
+
+    if (senderId.includes('@lid') && client) {
+      try {
+        const mapped = await client.getContactLidAndPhone(senderId);
+        const pn = mapped && mapped[0] && mapped[0].pn;
+        if (pn) phoneNo = pn.split('@')[0];
+      } catch (e) {}
+    }
 
     // Abaikan pesan dari bot sendiri (dari event message_create)
     if (message.fromMe) return;
@@ -61,8 +69,12 @@ async function handleMessage(client, message, getGroups, providedChat = null) {
     const ownerNumbers = (config.OWNER_NUMBER || '').split(',').map(n => n.trim());
 
     // Abaikan pesan dari owner dan bot sendiri (via JID)
-    const botJid   = config.BOT_NUMBER   + '@c.us';
-    if (ownerNumbers.includes(senderNo) || ownerNumbers.includes(phoneNo) || senderId === botJid) return;
+    const botJid = config.BOT_NUMBER + '@c.us';
+    function norm(n) { if (!n) return ''; n = String(n).replace(/\D/g, ''); if (n.startsWith('0')) n = '62' + n.slice(1); if (n.startsWith('8')) n = '62' + n; return n; }
+    const senderCandidates = [senderNo, phoneNo, contact.id?.user, contact.number, senderId.split('@')[0]].filter(Boolean).map(norm);
+    const normalizedOwners = ownerNumbers.map(norm);
+    const isOwner = senderCandidates.some(n => normalizedOwners.includes(n));
+    if (isOwner || senderId === botJid) return;
 
     // Abaikan pesan kosong, stiker, atau terlalu pendek
     const body = (message.body || '').trim();
@@ -120,7 +132,7 @@ Harap patuhi peraturan grup. Terima kasih. 🙏
 *— ${config.BOT_NAME}*
 `.trim();
 
-      await chat.sendMessage(warnMsg, { mentions: [contact] });
+      await chat.sendMessage(warnMsg, { mentions: [senderId] });
 
     } else {
       // Pelanggaran ke-4 → KICK
@@ -136,7 +148,7 @@ dan telah *dikeluarkan otomatis* dari grup.
 *— ${config.BOT_NAME}*
 `.trim();
 
-      await chat.sendMessage(kickMsg, { mentions: [contact] });
+      await chat.sendMessage(kickMsg, { mentions: [senderId] });
 
       try {
         await chat.removeParticipants([senderId]);
