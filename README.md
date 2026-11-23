@@ -1,6 +1,6 @@
 # Final Project KI — Safety-Bot
 
-Proyek akhir mata kuliah **Kecerdasan Buatan** yang menggabungkan dua komponen:
+Proyek akhir mata kuliah **Keamanan Informasi** yang menggabungkan dua komponen:
 
 1. **ML Hate Speech Classifier** — model klasifikasi teks Bahasa Indonesia (kata kasar, rasis, dan SARA) menggunakan **TF-IDF + Logistic Regression**.
 2. **Safety-Bot** — bot admin WhatsApp otomatis untuk moderasi grup, dilengkapi **LLM lokal (Ollama)** sebagai validator konten, penjadwal shalat, jam operasional grup, dan **dashboard web** real-time.
