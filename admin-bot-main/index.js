@@ -15,10 +15,13 @@ const fs      = require('fs');
 
 const config             = require('./config');
 const { handleNewMember }       = require('./handlers/welcomeHandler');
-const { handleMessage, resetMemberWarnings, getMemberWarnings } = require('./handlers/moderationHandler');
+const { handleMessage, resetMemberWarnings, getMemberWarnings } = require('./handlers/securityHandler');
 const { startPrayerScheduler, getCachedPrayerTimes }  = require('./handlers/prayerHandler');
 const { loadStatus, saveStatus } = require('./utils/storage');
-const { getUsageStats }         = require('./utils/grokAI');
+const { getUsageStats }         = require('./utils/llmSecurity');
+const { getThreatStats }        = require('./utils/threatAnalyzer');
+const { getIncidentStats }      = require('./utils/incidents');
+const { checkHealth }           = require('./utils/mlClient');
 
 // ─── Setup Express (Dashboard) ─────────────────────────────
 const app = express();
@@ -32,6 +35,8 @@ app.get('/api/stats', (req, res) => {
   res.json({
     botStatus: loadStatus(),
     aiStats: getUsageStats(),
+    securityStats: getThreatStats(),
+    incidentStats: getIncidentStats(),
     groups: managedGroups,
     prayerTimes: getCachedPrayerTimes(),
     config: config,
@@ -133,34 +138,53 @@ async function refreshManagedGroups() {
 }
 
 // ─── Inisialisasi Client WhatsApp ───────────────────────────
-const isTermux = process.platform === 'android' || process.env.PREFIX === '/data/data/com.termux/files/usr';
+const isTermux  = process.platform === 'android' || process.env.PREFIX === '/data/data/com.termux/files/usr';
+const headless  = process.env.HEADLESS !== 'false';           // default: true
+const clientId  = process.env.WA_CLIENT_ID || 'safety-bot';   // konsisten dengan session lama
 
 const puppeteerOptions = {
-    headless: true,
+    headless,
     args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins',
-        '--disable-site-isolation-trials',
-        '--js-flags=--max-old-space-size=512'
+        '--disable-gpu'
     ],
     timeout: 60000
 };
 
+// Termux butuh mode single-process; Windows/Linux tidak.
 if (isTermux) {
+    puppeteerOptions.args.push('--single-process', '--no-zygote');
+}
+
+// Path Chrome opsional. Jika kosong, Puppeteer memakai Chromium bawaannya.
+const chromePath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
+if (chromePath) {
+    puppeteerOptions.executablePath = chromePath;
+} else if (isTermux) {
     puppeteerOptions.executablePath = '/data/data/com.termux/files/usr/bin/chromium-browser';
 }
 
+console.log(`[Auth] Session: ${clientId} | headless: ${headless}` +
+    (puppeteerOptions.executablePath ? ` | chrome: ${puppeteerOptions.executablePath}` : ' | chrome: bundled'));
+
 const client = new Client({
-    authStrategy: new LocalAuth({ clientId: 'safety-bot' }),
-    puppeteer: puppeteerOptions
+    authStrategy: new LocalAuth({ clientId }),
+    authTimeoutMs: 120000, // Perpanjang batas tunggu koneksi Socket menjadi 2 menit (120 detik)
+    puppeteer: {
+        ...puppeteerOptions,
+        headless: false, // Tampilkan browser sementara agar terlihat apakah WA Web meminta refresh/QR
+        timeout: 120000,
+        args: [
+            ...(puppeteerOptions.args || []),
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-ipv6', // Mencegah WebSocket WhatsApp nyangkut di IPv6 Windows
+            '--disable-features=IsolateOrigins,site-per-process'
+        ]
+    }
 });
 const waClient = client;
 
@@ -206,6 +230,18 @@ client.on('ready', async () => {
   await refreshManagedGroups();
   console.log(`  📊  Memantau ${managedGroups.length} grup`);
   managedGroups.forEach(id => console.log(`       • ${id}`));
+
+  const mlHealth = await checkHealth();
+  if (mlHealth && mlHealth.status === 'ok') {
+    console.log(`  🧠  ML service siap: ${mlHealth.model || 'tfidf+logreg'}` +
+      (mlHealth.metrics ? ` (held-out accuracy ${mlHealth.metrics.accuracy}, macro F1 ${mlHealth.metrics.macro_f1})` : ''));
+    if (mlHealth.manual_metrics) {
+      console.log(`  🧪  Uji manual: accuracy ${mlHealth.manual_metrics.accuracy}, macro F1 ${mlHealth.manual_metrics.macro_f1}`);
+    }
+  } else {
+    console.warn('  ⚠️  ML service tidak siap — deteksi fallback ke aturan/LLM.' +
+      (mlHealth && mlHealth.error ? ` (${mlHealth.error})` : ''));
+  }
   console.log('═'.repeat(55) + '\n');
 
   await startPrayerScheduler(client, getGroups);
@@ -284,12 +320,25 @@ function startGroupOperationalScheduler() {
   console.log('[Scheduler] Jam operasional & refresh jadwal aktif.\n');
 }
 
+function getJakartaHour() {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(new Date());
+    const part = parts.find(p => p.type === 'hour');
+    return part ? Number(part.value) : new Date().getHours();
+  } catch {
+    return new Date().getHours();
+  }
+}
+
 async function checkCurrentOperationalHours() {
   const { isActive } = loadStatus();
   if (!isActive) return;
 
-  const now  = new Date();
-  const hour = now.getHours();
+  const hour = getJakartaHour();
 
   if (hour >= config.CLOSE_HOUR || hour < config.OPEN_HOUR) {
     console.log(`[Operational] Jam sekarang ${hour}:00, otomatis mengunci grup (Waktu Tidur).`);
@@ -410,17 +459,18 @@ async function handleAllMessagesRaw(message) {
     if (isOwner || (chat && chat.isGroup)) {
       let helpMsg = `📋 *Menu ${config.BOT_NAME}*\n\n` +
                     `*!status*    — Cek status aktif bot\n` +
-                    `*!apistats*  — Penggunaan AI hari ini\n`;
+                    `*!apistats*  — Statistik AI & ancaman\n`;
       if (isOwner) {
         helpMsg += `\n👑 *Owner Only:*\n` +
                    `*bot-bangun*  — Aktifkan bot\n` +
                    `*bot-tidur*   — Matikan bot\n` +
                    `*!groups*      — Daftar grup\n` +
-                   `*!warn <id> <no>*  — Cek warn member\n` +
-                   `*!reset <id> <no>* — Reset warn\n` +
+                   `*!incidents*   — Insiden keamanan terbaru\n` +
+                   `*!warn <id> <no>*  — Cek poin peringatan member\n` +
+                   `*!reset <id> <no>* — Reset peringatan\n` +
                    `*!lock/unlock <id>* — Kontrol grup\n`;
       }
-      helpMsg += `\n_Ketik perintah sesuai daftar di atas._`;
+      helpMsg += `\n_Bot memantau spam, phishing, dan rekayasa sosial secara real-time._`;
       await message.reply(helpMsg);
       return;
     }
@@ -428,27 +478,59 @@ async function handleAllMessagesRaw(message) {
 
   if (body === '!status') {
     const { isActive } = loadStatus();
+    const security = getThreatStats();
     await message.reply(
       `✅ *${config.BOT_NAME} Status*\n\n` +
       `🕐 Waktu   : ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n` +
-      `🤖 Moderasi: ${isActive ? 'Aktif (Bangun) ✅' : 'Mati (Tidur) 💤'}\n` +
-      `🤖 Versi   : 1.0.0`
+      `🤖 Keamanan: ${isActive ? 'Aktif (Bangun) ✅' : 'Mati (Tidur) 💤'}\n` +
+      `🧠 Mode    : *${security.mode}*\n` +
+      `📊 Dianalisis: ${security.analyzed} pesan\n` +
+      `🚨 Ancaman : ${security.spam + security.phishing + security.social_engineering}\n` +
+      `🤖 Versi   : 2.0.0`
     );
     return;
   }
 
   if (body === '!apistats') {
     const stats = getUsageStats();
-    const pct   = Math.round((stats.used / stats.cap) * 100);
-    const bar   = '█'.repeat(Math.round(pct/10)) + '░'.repeat(10 - Math.round(pct/10));
+    const security = getThreatStats();
+    const incidents = getIncidentStats();
     await message.reply(
-      `📊 *Grok AI Usage Hari Ini*\n\n` +
-      `Model  : grok-3-mini (free tier)\n` +
-      `Tanggal: ${stats.date}\n` +
-      `${bar} ${pct}%\n` +
-      `Pakai  : *${stats.used}* / ${stats.cap} panggilan\n` +
-      `Sisa   : *${stats.cap - stats.used}* panggilan\n\n` +
-      `_Counter reset otomatis tiap tengah malam._`
+      `📊 *Statistik Keamanan & AI*\n\n` +
+      `Mode pipeline : *${stats.mode}*\n` +
+      `Model ML      : ${stats.mlModel}\n` +
+      `Model LLM     : ${stats.model}\n\n` +
+      `🧠 ML         : ${stats.mlUsed} panggilan (${stats.mlErrors} error)\n` +
+      `🤖 LLM        : ${stats.llmUsed} panggilan (${stats.llmErrors} error)\n` +
+      `💾 Cache LLM  : ${stats.cacheHits || 0} hit\n\n` +
+      `📥 Dianalisis : ${security.analyzed}\n` +
+      `📢 Spam       : ${security.spam}\n` +
+      `🎣 Phishing   : ${security.phishing}\n` +
+      `🎭 Rekayasa   : ${security.social_engineering}\n` +
+      `🚨 Insiden    : ${incidents.total} (24 jam: ${incidents.last24h})\n\n` +
+      `_Counter direset setiap bot restart._`
+    );
+    return;
+  }
+
+  if (body === '!incidents' && isOwner) {
+    const incidents = getIncidentStats();
+    const recent = incidents.recent.slice(0, 5);
+    if (!recent.length) {
+      await message.reply('📭 Belum ada insiden keamanan yang tercatat.');
+      return;
+    }
+    const list = recent.map((item, index) => {
+      const time = new Date(item.timestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+      return `${index + 1}. [${item.severity.toUpperCase()}] ${item.category}\n` +
+             `   ${item.senderName || item.senderId} @ ${item.groupName || item.groupId}\n` +
+             `   ${time} | ${item.action}`;
+    }).join('\n\n');
+    await message.reply(
+      `🚨 *Insiden Keamanan Terbaru*\n\n` +
+      `Total: ${incidents.total} | 24 jam: ${incidents.last24h}\n` +
+      `Spam ${incidents.byCategory.spam} | Phishing ${incidents.byCategory.phishing} | Rekayasa ${incidents.byCategory.social_engineering}\n\n` +
+      list
     );
     return;
   }
@@ -523,7 +605,7 @@ async function handleAllMessagesRaw(message) {
       const groupId = partsWarn[1];
       const userId  = partsWarn[2].includes('@') ? partsWarn[2] : partsWarn[2] + '@c.us';
       const count   = getMemberWarnings(groupId, userId);
-      await message.reply(`⚠️ Peringatan ${partsWarn[2]} di ${groupId}: *${count}*`);
+      await message.reply(`⚠️ Poin peringatan ${partsWarn[2]} di ${groupId}: *${count}/${config.MAX_WARNINGS}*`);
     } else {
       await message.reply('❌ Format: !warn <groupId> <nomor>');
     }

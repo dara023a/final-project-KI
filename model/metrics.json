@@ -1,0 +1,212 @@
+{
+  "trained_at": "2026-11-24T02:52:17.165587+00:00",
+  "dataset": {
+    "rows": 12957,
+    "train": 10365,
+    "test": 2592,
+    "test_size": 0.2,
+    "random_state": 42
+  },
+  "metrics": {
+    "accuracy": 0.8573,
+    "macro_f1": 0.8115,
+    "weighted_f1": 0.8592,
+    "per_class": {
+      "none": {
+        "precision": 0.9069,
+        "recall": 0.8621,
+        "f1": 0.884,
+        "support": 1458
+      },
+      "rude": {
+        "precision": 0.856,
+        "recall": 0.8802,
+        "f1": 0.868,
+        "support": 885
+      },
+      "sara": {
+        "precision": 0.6284,
+        "recall": 0.747,
+        "f1": 0.6826,
+        "support": 249
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "none",
+        "rude",
+        "sara"
+      ],
+      "matrix": [
+        [
+          1257,
+          107,
+          94
+        ],
+        [
+          90,
+          779,
+          16
+        ],
+        [
+          39,
+          24,
+          186
+        ]
+      ]
+    }
+  },
+  "top_features": {
+    "none": [
+      {
+        "term": "bom",
+        "weight": 2.9926
+      },
+      {
+        "term": "asing",
+        "weight": 2.8425
+      },
+      {
+        "term": "budaya",
+        "weight": 2.6578
+      },
+      {
+        "term": "presiden",
+        "weight": 2.449
+      },
+      {
+        "term": "katolik",
+        "weight": 2.3759
+      },
+      {
+        "term": "ekonomi",
+        "weight": 2.3344
+      },
+      {
+        "term": "gubernur",
+        "weight": 2.2148
+      },
+      {
+        "term": "pilkada",
+        "weight": 2.1551
+      },
+      {
+        "term": "sipit",
+        "weight": 2.0891
+      },
+      {
+        "term": "dan",
+        "weight": 1.9977
+      },
+      {
+        "term": "jokowi",
+        "weight": 1.6992
+      },
+      {
+        "term": "kunti",
+        "weight": 1.6298
+      }
+    ],
+    "rude": [
+      {
+        "term": "cebong",
+        "weight": 4.6463
+      },
+      {
+        "term": "user",
+        "weight": 3.3245
+      },
+      {
+        "term": "kampret",
+        "weight": 3.1427
+      },
+      {
+        "term": "bajingan",
+        "weight": 3.0964
+      },
+      {
+        "term": "bego",
+        "weight": 3.0318
+      },
+      {
+        "term": "tai",
+        "weight": 2.9393
+      },
+      {
+        "term": "ngentot",
+        "weight": 2.8942
+      },
+      {
+        "term": "kamu",
+        "weight": 2.8347
+      },
+      {
+        "term": "memek",
+        "weight": 2.7565
+      },
+      {
+        "term": "anjing",
+        "weight": 2.7497
+      },
+      {
+        "term": "kunyuk",
+        "weight": 2.6269
+      },
+      {
+        "term": "kontol",
+        "weight": 2.5936
+      }
+    ],
+    "sara": [
+      {
+        "term": "cina",
+        "weight": 7.7999
+      },
+      {
+        "term": "kafir",
+        "weight": 6.7743
+      },
+      {
+        "term": "komunis",
+        "weight": 6.1898
+      },
+      {
+        "term": "islam",
+        "weight": 5.7752
+      },
+      {
+        "term": "pki",
+        "weight": 5.7562
+      },
+      {
+        "term": "kapir",
+        "weight": 4.3722
+      },
+      {
+        "term": "usir",
+        "weight": 3.8065
+      },
+      {
+        "term": "agama",
+        "weight": 3.7229
+      },
+      {
+        "term": "budha",
+        "weight": 3.215
+      },
+      {
+        "term": "muslim",
+        "weight": 3.1605
+      },
+      {
+        "term": "indonesia",
+        "weight": 3.0409
+      },
+      {
+        "term": "china",
+        "weight": 2.9647
+      }
+    ]
+  },
+  "sklearn_version": "1.9.1"
+}

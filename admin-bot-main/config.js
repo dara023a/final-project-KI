@@ -4,7 +4,7 @@
 
 module.exports = {
   // ─── Identitas Bot ──────────────────────────────────────────
-  BOT_NAME: 'Safety-Bot',
+  BOT_NAME: process.env.BOT_NAME || 'Security-Bot',
 
   // Format: 62 + nomor tanpa awalan 0  (contoh: 08xxx → 628xxx)
   OWNER_NUMBER: process.env.OWNER_NUMBER || '6282254513920',   // Pemilik
@@ -26,9 +26,41 @@ module.exports = {
   // ─── Sistem Peringatan ──────────────────────────────────────
   MAX_WARNINGS: 3, // Peringatan ke-4 langsung kick
 
-  // ─── Grok AI ────────────────────────────────────────────────
-  GROK_MODEL:      'grok-3-mini', // Model paling murah xAI (free tier)
-  GROK_CONFIDENCE: 0.75, // Threshold confidence minimum (0-1)
+  // ─── AI / Deteksi Ancaman ───────────────────────────────────
+  // Mode pipeline: rules | ml | hybrid | llm
+  //   rules  : heuristik lokal saja (pembanding baseline)
+  //   ml     : rules + model ML, tanpa LLM
+  //   llm    : rules + LLM, tanpa ML
+  //   hybrid : rules + ML + LLM hanya untuk kasus ambigu (disarankan)
+  SECURITY_MODE: (process.env.SECURITY_MODE || process.env.MODERATION_MODE || 'hybrid').toLowerCase(),
+
+  // LLM lokal (Ollama) sebagai validator konteks.
+  GROK_MODEL:      process.env.OLLAMA_MODEL || 'qwen2.5:3b',
+  GROK_CONFIDENCE: process.env.LLM_CONFIDENCE !== undefined
+    ? Number(process.env.LLM_CONFIDENCE) : 0.75,
+
+  // Model ML (TF-IDF word+char + Logistic Regression) via ml_service.py.
+  // Endpoint bisa dioverride lewat env ML_URL.
+  ML_URL: process.env.ML_URL || 'http://127.0.0.1:5001/predict',
+  ML_CONFIDENCE: process.env.ML_CONFIDENCE !== undefined
+    ? Number(process.env.ML_CONFIDENCE) : 0.65,
+  ML_SAFE_CONFIDENCE: process.env.ML_SAFE_CONFIDENCE !== undefined
+    ? Number(process.env.ML_SAFE_CONFIDENCE) : 0.85,
+
+  // Ambang skor aturan lokal (0-1).
+  RULE_THRESHOLD: process.env.RULE_THRESHOLD !== undefined
+    ? Number(process.env.RULE_THRESHOLD) : 0.60,
+  RULE_STRONG: process.env.RULE_STRONG !== undefined
+    ? Number(process.env.RULE_STRONG) : 0.80,
+
+  // Analisis URL phishing.
+  PHISHING_EXPAND_SHORTENERS: process.env.PHISHING_EXPAND_SHORTENERS === 'true',
+  PHISHING_TIMEOUT_MS: Number(process.env.PHISHING_TIMEOUT_MS || 2500),
+
+  // Notifikasi & penyimpanan insiden.
+  NOTIFY_OWNER_ON_THREAT: process.env.NOTIFY_OWNER_ON_THREAT !== 'false',
+  INCIDENT_MAX: Number(process.env.INCIDENT_MAX || 500),
+  HIGH_SEVERITY_WEIGHT: 2,
 
   // ─── Pesan Sambutan & Aturan ────────────────────────────────
   GROUP_DESCRIPTION: `
@@ -40,20 +72,21 @@ dalam bingkai keberagaman Indonesia,, enjoy guys.🇮🇩
 `.trim(),
 
   GROUP_RULES: `
-📋 *PERATURAN GRUP*
+📋 *PERATURAN KEAMANAN GRUP*
 
-1️⃣  Dilarang berkata kasar, makian, atau tidak sopan
-2️⃣  Dilarang menyebarkan konten *RASIS*
-3️⃣  Dilarang menyebarkan konten *SARA* (Suku, Agama, Ras, Antar-golongan)
-4️⃣  Dilarang spam dan promosi/iklan tanpa izin admin (antisipasi scam)
-5️⃣  Dilarang menyebarkan hoaks dan berita bohong
-6️⃣  Saling menghormati sesama anggota
+1️⃣  Dilarang mengirim *SPAM*: promosi berulang, judi online, pinjol, chain message
+2️⃣  Dilarang menyebarkan *PHISHING*: link palsu, verifikasi akun, klaim hadiah
+3️⃣  Dilarang melakukan *REKAYASA SOSIAL*: meminta OTP/PIN/password, transfer mendesak, impersonasi admin/bank
+4️⃣  Dilarang menyebarkan hoaks, konten SARA, atau kata kasar
+5️⃣  Verifikasi pengirim sebelum menuruti permintaan sensitif
+6️⃣  Laporkan pesan mencurigakan ke admin grup
 
 ⚠️  *Konsekuensi Pelanggaran:*
-     ├─ Pelanggaran 1–3 → Peringatan otomatis
-     └─ Pelanggaran ke-4 → *KICK* dari grup
+     ├─ Pelanggaran ringan → pesan dihapus + peringatan
+     ├─ Pelanggaran berat (phishing/rekayasa sosial) → bobot 2
+     └─ Peringatan melebihi batas → *KICK* dari grup
 
-🤖  Safety-Bot aktif 24 jam memantau grup ini.
+🤖  Security-Bot aktif 24 jam memantau spam, phishing, dan rekayasa sosial.
 `.trim(),
 
   // ─── Pesan Adzan per Waktu Shalat ───────────────────────────

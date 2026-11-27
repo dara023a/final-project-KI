@@ -60,12 +60,15 @@ function saveWarnings(warnings) {
 }
 
 /**
- * Tambah 1 peringatan untuk user di grup tertentu
+ * Tambah peringatan untuk user di grup tertentu.
+ * `amount` memungkinkan pelanggaran berat (phishing/rekayasa sosial)
+ * dihitung lebih dari satu poin.
  */
-function addWarning(warnings, groupId, userId) {
+function addWarning(warnings, groupId, userId, amount = 1) {
   if (!warnings[groupId])         warnings[groupId] = {};
   if (!warnings[groupId][userId]) warnings[groupId][userId] = 0;
-  warnings[groupId][userId]++;
+  const delta = Math.max(1, Number(amount) || 1);
+  warnings[groupId][userId] += delta;
   saveWarnings(warnings);
   return warnings[groupId][userId];
 }

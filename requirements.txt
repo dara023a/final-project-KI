@@ -1,0 +1,5 @@
+# Dependensi komponen ML (Python)
+# Install: pip install -r requirements.txt
+pandas>=2.0
+scikit-learn>=1.3
+joblib>=1.3

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Safety-Bot Dashboard</title>
+  <title>Security-Bot Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -91,9 +91,30 @@
     .stat-icon.blue { background: var(--accent-dim); color: var(--accent); }
     .stat-icon.green { background: var(--green-dim); color: var(--green); }
     .stat-icon.amber { background: var(--amber-dim); color: var(--amber); }
+    .stat-icon.red { background: var(--red-dim); color: var(--red); }
     .stat-label { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
     .stat-value { font-size: 22px; font-weight: 600; color: var(--text); }
     .stat-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    /* ── Incident table ── */
+    .incident-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .incident-table th {
+      text-align: left; color: var(--text3); font-weight: 500;
+      padding: 8px 10px; border-bottom: 1px solid var(--border);
+      text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px;
+    }
+    .incident-table td {
+      padding: 9px 10px; border-bottom: 1px solid var(--border);
+      color: var(--text2); vertical-align: top;
+    }
+    .incident-table tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+    }
+    .badge.high { background: var(--red-dim); color: var(--red); }
+    .badge.medium { background: var(--amber-dim); color: var(--amber); }
+    .badge.low { background: var(--green-dim); color: var(--green); }
 
     /* ── Progress bar ── */
     .progress-wrap { margin-top: 10px; }
@@ -256,7 +277,7 @@
 <nav>
   <div class="nav-brand">
     <i class="ti ti-shield-check"></i>
-    Safety-Bot Dashboard
+    Security-Bot Dashboard
   </div>
   <div id="conn-status" class="status-pill">
     <span class="dot"></span>
@@ -275,12 +296,12 @@
     </div>
     <div class="stat-card">
       <div class="stat-icon green"><i class="ti ti-brain"></i></div>
-      <div class="stat-label">Penggunaan AI</div>
-      <div id="stat-ai" class="stat-value">0 / 40</div>
+      <div class="stat-label">Pemanggilan AI</div>
+      <div id="stat-ai" class="stat-value">0</div>
       <div class="progress-wrap">
         <div class="progress-bar"><div id="ai-bar" class="progress-fill" style="width:0%"></div></div>
       </div>
-      <div id="stat-ai-sub" class="stat-sub">0% terpakai hari ini</div>
+      <div id="stat-ai-sub" class="stat-sub">ML 0 · LLM 0</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon amber"><i class="ti ti-users"></i></div>
@@ -293,6 +314,34 @@
       <div class="stat-label">Uptime</div>
       <div id="stat-uptime" class="stat-value">—</div>
       <div class="stat-sub">sejak terakhir restart</div>
+    </div>
+  </div>
+
+  <!-- Threat monitor -->
+  <div class="stats-grid threat-grid">
+    <div class="stat-card">
+      <div class="stat-icon amber"><i class="ti ti-message-2"></i></div>
+      <div class="stat-label">Spam</div>
+      <div id="stat-spam" class="stat-value">0</div>
+      <div class="stat-sub">pesan terdeteksi</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon red"><i class="ti ti-link"></i></div>
+      <div class="stat-label">Phishing</div>
+      <div id="stat-phishing" class="stat-value">0</div>
+      <div class="stat-sub">link / verifikasi palsu</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="ti ti-user-exclamation"></i></div>
+      <div class="stat-label">Rekayasa Sosial</div>
+      <div id="stat-se" class="stat-value">0</div>
+      <div class="stat-sub">OTP / transfer / impersonasi</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green"><i class="ti ti-shield-check"></i></div>
+      <div class="stat-label">Total Insiden</div>
+      <div id="stat-incidents" class="stat-value">0</div>
+      <div id="stat-incidents-sub" class="stat-sub">24 jam: 0</div>
     </div>
   </div>
 
@@ -312,7 +361,7 @@
         <div class="section-label">Identitas</div>
         <div class="form-group">
           <label>Nama Bot</label>
-          <input type="text" id="cfg-name" placeholder="Safety-Bot">
+          <input type="text" id="cfg-name" placeholder="Security-Bot">
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -365,12 +414,22 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>AI Confidence (0.5–1.0)</label>
+            <label>LLM Confidence (0.5–1.0)</label>
             <input type="number" id="cfg-confidence" step="0.05" min="0.5" max="1.0">
           </div>
           <div class="form-group">
             <label>Max Peringatan</label>
             <input type="number" id="cfg-warnings" min="1" max="10">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>ML Violation Threshold</label>
+            <input type="number" id="cfg-ml-confidence" step="0.05" min="0" max="1">
+          </div>
+          <div class="form-group">
+            <label>ML Safe Threshold</label>
+            <input type="number" id="cfg-ml-safe" step="0.05" min="0" max="1">
           </div>
         </div>
 
@@ -427,6 +486,35 @@
             <textarea id="cfg-rules" rows="6"></textarea>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Incident Monitor — full width -->
+    <div class="card card-full">
+      <div class="card-header">
+        <div class="card-title"><i class="ti ti-alert-triangle"></i> Insiden Keamanan Terbaru</div>
+        <span id="incident-summary" style="font-size:11px; color:var(--text3);">-</span>
+      </div>
+      <div class="card-body" style="padding: 0 20px 16px;">
+        <table class="incident-table">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Grup</th>
+              <th>Pengirim</th>
+              <th>Kategori</th>
+              <th>Tingkat</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="incident-list">
+            <tr>
+              <td colspan="6" style="text-align:center; color:var(--text3); padding:18px;">
+                Belum ada insiden.
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -498,12 +586,17 @@
       document.getElementById('stat-bot-sub').textContent = active ? 'Memantau grup' : 'Bot dinonaktifkan';
       document.getElementById('stat-bot').style.color = active ? 'var(--green)' : 'var(--amber)';
 
-      // AI stats
-      const ai = data.aiStats || { used: 0, cap: 40 };
-      const pct = Math.round((ai.used / ai.cap) * 100);
-      document.getElementById('stat-ai').textContent = `${ai.used} / ${ai.cap}`;
-      document.getElementById('ai-bar').style.width = `${pct}%`;
-      document.getElementById('stat-ai-sub').textContent = `${pct}% terpakai hari ini`;
+      // AI stats (ML + LLM)
+      const ai = data.aiStats || {};
+      const mlUsed = ai.mlUsed ?? 0;
+      const llmUsed = ai.llmUsed ?? 0;
+      const totalCalls = ai.used ?? (mlUsed + llmUsed);
+      const mlShare = totalCalls ? Math.round((mlUsed / totalCalls) * 100) : 0;
+      const mlOffline = ai.ml && ai.ml.available === false ? ' · ML offline' : '';
+      document.getElementById('stat-ai').textContent = `${totalCalls}`;
+      document.getElementById('ai-bar').style.width = `${mlShare}%`;
+      document.getElementById('stat-ai-sub').textContent =
+        `${ai.mode || '-'} · ML ${mlUsed} · LLM ${llmUsed}${mlOffline}`;
 
       // Groups
       document.getElementById('stat-group').textContent = data.groups?.length ?? 0;
@@ -512,6 +605,18 @@
       if (data.uptime) {
         document.getElementById('stat-uptime').textContent = formatUptime(Math.round(data.uptime));
       }
+
+      // Threat stats (runtime detections + incidents)
+      const security = data.securityStats || {};
+      const incidents = data.incidentStats || {};
+      document.getElementById('stat-spam').textContent = String(security.spam ?? 0);
+      document.getElementById('stat-phishing').textContent = String(security.phishing ?? 0);
+      document.getElementById('stat-se').textContent = String(security.social_engineering ?? 0);
+      document.getElementById('stat-incidents').textContent = String(incidents.total ?? 0);
+      document.getElementById('stat-incidents-sub').textContent = `24 jam: ${incidents.last24h ?? 0}`;
+      document.getElementById('incident-summary').textContent =
+        `Total: ${incidents.total ?? 0} · 24 jam: ${incidents.last24h ?? 0}`;
+      renderIncidents(incidents);
 
       // Config fields (only on first load or after save)
       if (data.config && Object.keys(configCache).length === 0) {
@@ -541,6 +646,8 @@
     document.getElementById('cfg-city').value       = cfg.CITY            ?? '';
     document.getElementById('cfg-country').value    = cfg.COUNTRY         ?? '';
     document.getElementById('cfg-confidence').value = cfg.GROK_CONFIDENCE ?? 0.75;
+    document.getElementById('cfg-ml-confidence').value = cfg.ML_CONFIDENCE ?? 0.65;
+    document.getElementById('cfg-ml-safe').value    = cfg.ML_SAFE_CONFIDENCE ?? 0.85;
     document.getElementById('cfg-warnings').value   = cfg.MAX_WARNINGS    ?? 3;
     document.getElementById('cfg-desc').value       = cfg.GROUP_DESCRIPTION ?? '';
     document.getElementById('cfg-rules').value      = cfg.GROUP_RULES      ?? '';
@@ -559,6 +666,8 @@
       CITY:              document.getElementById('cfg-city').value,
       COUNTRY:           document.getElementById('cfg-country').value,
       GROK_CONFIDENCE:   parseFloat(document.getElementById('cfg-confidence').value),
+      ML_CONFIDENCE:      parseFloat(document.getElementById('cfg-ml-confidence').value),
+      ML_SAFE_CONFIDENCE: parseFloat(document.getElementById('cfg-ml-safe').value),
       MAX_WARNINGS:      parseInt(document.getElementById('cfg-warnings').value),
       GROUP_DESCRIPTION: document.getElementById('cfg-desc').value,
       GROUP_RULES:       document.getElementById('cfg-rules').value,
@@ -606,6 +715,57 @@
     } catch (err) {
       showToast('Error: ' + err.message, true);
     }
+  }
+
+  function renderIncidents(incidents) {
+    const list = document.getElementById('incident-list');
+    const summary = document.getElementById('incident-summary');
+    const total = incidents?.total ?? 0;
+    const last24h = incidents?.last24h ?? 0;
+    summary.textContent = `Total: ${total} · 24 jam: ${last24h}`;
+
+    const recent = incidents?.recent || [];
+    if (!recent.length) {
+      list.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center; color:var(--text3); padding:18px;">
+            Belum ada insiden.
+          </td>
+        </tr>`;
+      return;
+    }
+
+    const categoryLabel = {
+      spam: 'Spam',
+      phishing: 'Phishing',
+      social_engineering: 'Rekayasa Sosial',
+      unknown: 'Lainnya',
+    };
+    const severityLabel = {
+      low: 'Rendah',
+      medium: 'Sedang',
+      high: 'Tinggi',
+      unknown: '—',
+    };
+
+    let html = '';
+    for (const item of recent.slice(0, 10)) {
+      const time = item.timestamp
+        ? new Date(item.timestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
+        : '-';
+      const badgeClass = `badge ${item.severity || 'low'}`;
+      html += `
+        <tr>
+          <td style="white-space:nowrap;">${time}</td>
+          <td>${item.groupName || item.groupId || '-'}</td>
+          <td>${item.senderName || item.senderId || '-'}</td>
+          <td>${categoryLabel[item.category] || 'Lainnya'}</td>
+          <td><span class="${badgeClass}">${severityLabel[item.severity] || '—'}</span></td>
+          <td>${item.action || '-'}</td>
+        </tr>`;
+    }
+
+    list.innerHTML = html;
   }
 
   function renderPrayer(times) {

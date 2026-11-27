@@ -1,0 +1,398 @@
+{
+  "trained_at": "2026-11-24T08:16:48.469749+00:00",
+  "dataset": {
+    "rows": 3942,
+    "random_state": 42,
+    "source": "data\\security_dataset.csv",
+    "kaggle_source": "data\\spam.csv",
+    "kaggle_spam_rows": 629,
+    "synthetic_test_rows": 1000,
+    "manual_test_rows": 65
+  },
+  "cv_macro_f1": {
+    "mean": 1.0,
+    "std": 0.0,
+    "folds": 5
+  },
+  "metrics": {
+    "accuracy": 0.953,
+    "macro_f1": 0.9531,
+    "weighted_f1": 0.9531,
+    "per_class": {
+      "safe": {
+        "precision": 0.9661,
+        "recall": 0.912,
+        "f1": 0.9383,
+        "support": 250
+      },
+      "spam": {
+        "precision": 0.9409,
+        "recall": 0.956,
+        "f1": 0.9484,
+        "support": 250
+      },
+      "phishing": {
+        "precision": 0.9098,
+        "recall": 0.968,
+        "f1": 0.938,
+        "support": 250
+      },
+      "social_engineering": {
+        "precision": 1.0,
+        "recall": 0.976,
+        "f1": 0.9879,
+        "support": 250
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "safe",
+        "spam",
+        "phishing",
+        "social_engineering"
+      ],
+      "matrix": [
+        [
+          228,
+          9,
+          13,
+          0
+        ],
+        [
+          0,
+          239,
+          11,
+          0
+        ],
+        [
+          8,
+          0,
+          242,
+          0
+        ],
+        [
+          0,
+          6,
+          0,
+          244
+        ]
+      ]
+    }
+  },
+  "manual_metrics": {
+    "accuracy": 0.9077,
+    "macro_f1": 0.9096,
+    "weighted_f1": 0.908,
+    "per_class": {
+      "safe": {
+        "precision": 1.0,
+        "recall": 0.8,
+        "f1": 0.8889,
+        "support": 20
+      },
+      "spam": {
+        "precision": 0.8333,
+        "recall": 1.0,
+        "f1": 0.9091,
+        "support": 15
+      },
+      "phishing": {
+        "precision": 1.0,
+        "recall": 0.9333,
+        "f1": 0.9655,
+        "support": 15
+      },
+      "social_engineering": {
+        "precision": 0.8235,
+        "recall": 0.9333,
+        "f1": 0.875,
+        "support": 15
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "safe",
+        "spam",
+        "phishing",
+        "social_engineering"
+      ],
+      "matrix": [
+        [
+          16,
+          2,
+          0,
+          2
+        ],
+        [
+          0,
+          15,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          14,
+          1
+        ],
+        [
+          0,
+          1,
+          0,
+          14
+        ]
+      ]
+    }
+  },
+  "top_features": {
+    "phishing": [
+      {
+        "term": "word__urltoken",
+        "weight": 2.5788
+      },
+      {
+        "term": "word__di urltoken",
+        "weight": 2.4616
+      },
+      {
+        "term": "word__urltoken untuk",
+        "weight": 1.8436
+      },
+      {
+        "term": "word__di",
+        "weight": 1.766
+      },
+      {
+        "term": "word__anda",
+        "weight": 1.3789
+      },
+      {
+        "term": "char__tok",
+        "weight": 1.2396
+      },
+      {
+        "term": "char__rlt",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__ url",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__ urlt",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__urlt",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__urlto",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__url",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__rltok",
+        "weight": 1.2102
+      },
+      {
+        "term": "char__rlto",
+        "weight": 1.2102
+      },
+      {
+        "term": "word__klik urltoken",
+        "weight": 1.2066
+      }
+    ],
+    "safe": [
+      {
+        "term": "word__ada",
+        "weight": 1.685
+      },
+      {
+        "term": "word__jam",
+        "weight": 1.3777
+      },
+      {
+        "term": "word__mohon",
+        "weight": 1.3686
+      },
+      {
+        "term": "word__sudah",
+        "weight": 1.2231
+      },
+      {
+        "term": "word__yang",
+        "weight": 1.1374
+      },
+      {
+        "term": "word__halo semua",
+        "weight": 1.0187
+      },
+      {
+        "term": "word__materi",
+        "weight": 1.0076
+      },
+      {
+        "term": "word__semua",
+        "weight": 0.9828
+      },
+      {
+        "term": "char__ala",
+        "weight": 0.9792
+      },
+      {
+        "term": "word__info",
+        "weight": 0.9468
+      },
+      {
+        "term": "word__jangan lupa",
+        "weight": 0.9197
+      },
+      {
+        "term": "word__besok",
+        "weight": 0.9166
+      },
+      {
+        "term": "word__lupa",
+        "weight": 0.8346
+      },
+      {
+        "term": "char__ ma",
+        "weight": 0.8303
+      },
+      {
+        "term": "word__ada di",
+        "weight": 0.8117
+      }
+    ],
+    "social_engineering": [
+      {
+        "term": "word__saya",
+        "weight": 1.9133
+      },
+      {
+        "term": "word__kirim",
+        "weight": 1.5791
+      },
+      {
+        "term": "char__ya ",
+        "weight": 1.2738
+      },
+      {
+        "term": "word__00 ke",
+        "weight": 1.2213
+      },
+      {
+        "term": "char__aya ",
+        "weight": 1.1722
+      },
+      {
+        "term": "char__aya",
+        "weight": 1.1581
+      },
+      {
+        "term": "word__rekening",
+        "weight": 1.0393
+      },
+      {
+        "term": "word__anda",
+        "weight": 1.0207
+      },
+      {
+        "term": "word__pak",
+        "weight": 1.0025
+      },
+      {
+        "term": "word__segera ya",
+        "weight": 0.9988
+      },
+      {
+        "term": "word__tolong",
+        "weight": 0.9871
+      },
+      {
+        "term": "word__ke",
+        "weight": 0.981
+      },
+      {
+        "term": "word__ya",
+        "weight": 0.9687
+      },
+      {
+        "term": "word__otp",
+        "weight": 0.9609
+      },
+      {
+        "term": "char__saya",
+        "weight": 0.9471
+      }
+    ],
+    "spam": [
+      {
+        "term": "word__to",
+        "weight": 1.4291
+      },
+      {
+        "term": "word__promo",
+        "weight": 0.9301
+      },
+      {
+        "term": "word__call",
+        "weight": 0.8925
+      },
+      {
+        "term": "word__buruan",
+        "weight": 0.858
+      },
+      {
+        "term": "word__you",
+        "weight": 0.8334
+      },
+      {
+        "term": "word__your",
+        "weight": 0.7914
+      },
+      {
+        "term": "word__gratis",
+        "weight": 0.7904
+      },
+      {
+        "term": "word__for",
+        "weight": 0.7702
+      },
+      {
+        "term": "word__wa",
+        "weight": 0.7261
+      },
+      {
+        "term": "word__untuk mendapatkan",
+        "weight": 0.7161
+      },
+      {
+        "term": "char__to ",
+        "weight": 0.6785
+      },
+      {
+        "term": "word__diskon",
+        "weight": 0.657
+      },
+      {
+        "term": "word__the",
+        "weight": 0.6449
+      },
+      {
+        "term": "word__now",
+        "weight": 0.6283
+      },
+      {
+        "term": "char__ to ",
+        "weight": 0.6184
+      }
+    ]
+  },
+  "sklearn_version": "1.9.1"
+}

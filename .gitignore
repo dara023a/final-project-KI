@@ -1,6 +1,12 @@
 venv/
 .env
 .wwebjs_auth/
+.wwebjs_cache/
 node_modules/
 
-.wwebjs_auth/
+# Python
+__pycache__/
+*.py[cod]
+
+# Artefak model (hasil training lokal)
+model/*.joblib

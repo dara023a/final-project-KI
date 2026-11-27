@@ -1,32 +1,51 @@
 // =============================================================
-// utils/grokAI.js — Validasi konten via OLLAMA (LLM lokal)
-// Pengganti versi Groq. Nama file & export dipertahankan agar
-// index.js, moderationHandler.js, dan test-bot.js tetap jalan.
+// utils/grokAI.js — Moderasi hybrid: filter lokal + ML + Ollama
 //
 // MODE (env MODERATION_MODE):
-//   baseline : hanya blocklist + regex (TANPA LLM)  -> pembanding eksperimen
-//   gated    : LLM hanya dipanggil jika blocklist/regex kena (perilaku lama)
-//   llm      : semua pesan non-trivial dikirim ke LLM (menangkap SARA tanpa kata kasar)
+//   baseline : blocklist + regex saja (tanpa AI)       -> pembanding
+//   gated    : LLM hanya dipanggil jika blocklist kena
+//   llm      : semua pesan non-trivial ke LLM (Ollama)
+//   ml       : hanya model ML (TF-IDF + LogReg), tanpa LLM
+//   hybrid   : ML dulu, LLM hanya untuk kasus ambigu   -> default
+//
+// Nama file & export dipertahankan agar index.js, moderationHandler.js,
+// dan test-bot.js tetap kompatibel.
 // =============================================================
 
-const axios  = require('axios');
+const axios = require('axios');
 const config = require('../config');
+const { classifyWithML, getMLStatus } = require('./mlClient');
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434/api/chat';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
-const MODE         = (process.env.MODERATION_MODE || 'gated').toLowerCase();
-const MAX_CHARS    = 500;                       // sebelumnya 120
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || config.GROK_MODEL || 'qwen2.5:3b';
+const RAW_MODE     = (process.env.MODERATION_MODE || 'hybrid').toLowerCase();
+const VALID_MODES  = new Set(['baseline', 'gated', 'llm', 'ml', 'hybrid']);
+const MODE         = VALID_MODES.has(RAW_MODE) ? RAW_MODE : 'hybrid';
+const MAX_CHARS    = 500;
 const CONFIDENCE   = config.GROK_CONFIDENCE || 0.75;
-const TIMEOUT_MS   = 60000;                     // model lokal bisa lambat saat pertama dimuat
+const TIMEOUT_MS   = 60000;
 const VALID_CATS   = new Set(['rude', 'racist', 'sara', 'none']);
+
+const clamp01 = (n, fallback) => {
+  const value = Number(n);
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
+};
+
+const ML_CONFIDENCE      = clamp01(config.ML_CONFIDENCE ?? process.env.ML_CONFIDENCE, 0.65);
+const ML_SAFE_CONFIDENCE = clamp01(config.ML_SAFE_CONFIDENCE ?? process.env.ML_SAFE_CONFIDENCE, 0.85);
+const USE_ML  = MODE === 'ml' || MODE === 'hybrid';
+const USE_LLM = MODE === 'gated' || MODE === 'llm' || MODE === 'hybrid';
 
 // ─── Cache 24 jam (key = teks ternormalisasi) ───────────────
 const responseCache = new Map();
 const CACHE_TTL     = 24 * 60 * 60 * 1000;
 
-// ─── Statistik (tanpa batas harian, hanya penghitung) ───────
-let callCount = 0;
-let errorCount = 0;
+// ─── Statistik ──────────────────────────────────────────────
+let mlCallCount = 0;
+let mlUnavailableCount = 0;
+let llmCallCount = 0;
+let llmErrorCount = 0;
+let cacheHits = 0;
 const startedAt = new Date().toDateString();
 
 // ─── Kata kasar lokal ───────────────────────────────────────
@@ -63,7 +82,11 @@ const SAFE_PATTERNS = [
 ];
 
 const SAFE_RESULT = {
-  is_violation: false, category: 'none', confidence: 1, reason: 'Lolos filter lokal'
+  is_violation: false,
+  category: 'none',
+  confidence: 1,
+  reason: 'Lolos filter lokal',
+  source: 'filter',
 };
 
 const SYSTEM_PROMPT =
@@ -76,7 +99,12 @@ const SYSTEM_PROMPT =
   'Jawab HANYA JSON: {"is_violation":bool,"category":"rude|racist|sara|none","confidence":0.0-1.0,"reason":"singkat"}';
 
 function normalizeText(text) {
-  return text.toLowerCase().replace(/@\d+/g, '').replace(/\s+/g, ' ').trim().substring(0, MAX_CHARS);
+  return String(text || '')
+    .toLowerCase()
+    .replace(/@\d+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, MAX_CHARS);
 }
 
 // Mengembalikan alasan jika blocklist/regex kena, atau null
@@ -90,35 +118,75 @@ function localHit(normalized) {
   return null;
 }
 
+function cacheResult(normalized, result) {
+  responseCache.set(normalized, { result, timestamp: Date.now() });
+  return result;
+}
+
+function blocklistResult(hit) {
+  return hit
+    ? { is_violation: true, category: 'rude', confidence: 0.95, reason: hit, source: 'blocklist' }
+    : { ...SAFE_RESULT };
+}
+
 async function checkViolation(messageText) {
   const normalized = normalizeText(messageText);
 
   // 1. Pesan yang pasti aman (abaikan emoji & tanda baca untuk pencocokan)
   const safeText = normalized.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   for (const pat of SAFE_PATTERNS) {
-    if (pat.test(normalized) || pat.test(safeText)) return SAFE_RESULT;
+    if (pat.test(normalized) || pat.test(safeText)) return { ...SAFE_RESULT };
   }
 
   const hit = localHit(normalized);
 
-  // 2. Mode baseline: tanpa LLM
-  if (MODE === 'baseline') {
-    return hit
-      ? { is_violation: true, category: 'rude', confidence: 0.95, reason: hit }
-      : SAFE_RESULT;
-  }
+  // 2. Mode baseline: tanpa AI
+  if (MODE === 'baseline') return blocklistResult(hit);
 
-  // 3. Mode gated: tanpa indikasi lokal -> lolos. Mode llm: lanjut ke LLM.
-  if (MODE === 'gated' && !hit) return SAFE_RESULT;
-  if (normalized.length < 3) return SAFE_RESULT;
+  // 3. Mode gated: tanpa indikasi lokal -> lolos
+  if (MODE === 'gated' && !hit) return { ...SAFE_RESULT };
+  if (normalized.length < 3) return { ...SAFE_RESULT };
 
   // 4. Cache
   const cached = responseCache.get(normalized);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.result;
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    cacheHits++;
+    return cached.result;
+  }
 
-  // 5. Panggil Ollama
+  // 5. Stage ML (mode ml/hybrid)
+  if (USE_ML) {
+    const ml = await classifyWithML(normalized);
+
+    if (ml) {
+      mlCallCount++;
+
+      const confidentViolation = ml.is_violation && ml.confidence >= ML_CONFIDENCE;
+      // Blocklist yang kena tidak boleh langsung diloloskan oleh ML.
+      const confidentSafe = !ml.is_violation && ml.confidence >= ML_SAFE_CONFIDENCE && !hit;
+
+      if (confidentViolation || confidentSafe) {
+        return cacheResult(normalized, {
+          is_violation: confidentViolation,
+          category: confidentViolation ? ml.category : 'none',
+          confidence: ml.confidence,
+          reason: ml.reason,
+          source: 'ml',
+          ml_probabilities: ml.probabilities,
+        });
+      }
+      // Ambigu -> lanjut ke LLM (jika mode mengizinkan).
+    } else {
+      mlUnavailableCount++;
+    }
+
+    // Mode ML murni: fallback ke blocklist lokal, tanpa LLM.
+    if (!USE_LLM) return cacheResult(normalized, blocklistResult(hit));
+  }
+
+  // 6. Stage LLM (Ollama)
   try {
-    callCount++;
+    llmCallCount++;
     const response = await axios.post(
       OLLAMA_URL,
       {
@@ -128,8 +196,8 @@ async function checkViolation(messageText) {
         options: { temperature: 0 },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user',   content: normalized }
-        ]
+          { role: 'user',   content: normalized },
+        ],
       },
       { timeout: TIMEOUT_MS }
     );
@@ -146,21 +214,34 @@ async function checkViolation(messageText) {
       parsed.category     = 'none';
     }
 
-    responseCache.set(normalized, { result: parsed, timestamp: Date.now() });
-    return parsed;
-
+    parsed.source = 'llm';
+    return cacheResult(normalized, parsed);
   } catch (error) {
-    errorCount++;
+    llmErrorCount++;
     console.error(`[Ollama] Error (${OLLAMA_MODEL}):`, error.message,
       '— pastikan Ollama berjalan & model sudah di-pull.');
-    // Tidak menghukum anggota saat LLM gagal, tapi error TERCATAT di log & statistik.
-    return { is_violation: false, category: 'none', confidence: 0, reason: 'API error', error: true };
+    // Tidak menghukum anggota saat LLM gagal, tapi error TERCATAT di statistik.
+    return { is_violation: false, category: 'none', confidence: 0, reason: 'API error', error: true, source: 'llm' };
   }
 }
 
-// Format kompatibel dengan index.js (used, cap, date). cap besar = praktis tanpa batas.
+// Format kompatibel dengan dashboard/index.js.
 function getUsageStats() {
-  return { used: callCount, cap: 999999, date: startedAt, errors: errorCount, mode: MODE, model: OLLAMA_MODEL };
+  return {
+    used: mlCallCount + llmCallCount,
+    cap: 999999,
+    date: startedAt,
+    mode: MODE,
+    model: OLLAMA_MODEL,
+    mlModel: 'tfidf+logistic_regression',
+    mlUsed: mlCallCount,
+    mlUnavailable: mlUnavailableCount,
+    llmUsed: llmCallCount,
+    llmErrors: llmErrorCount,
+    cacheHits,
+    errors: llmErrorCount,
+    ml: getMLStatus(),
+  };
 }
 
-module.exports = { checkViolation, getUsageStats };
+module.exports = { checkViolation, getUsageStats, MODE, ML_CONFIDENCE, ML_SAFE_CONFIDENCE };
